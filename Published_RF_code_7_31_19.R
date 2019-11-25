@@ -45,16 +45,16 @@ library(rsq)
 
 ####Downloading data####
 proj_system<-"+init=epsg:3310"
-la_metro<-load_sf_from_googledrive("la_metro_shapefile")
+la_metro<-read_sf("la_metro_shapefile")
 la_metro_proj<-spTransform(as_Spatial(la_metro), CRS(proj_system))
 
 #Calsurv mosquito trapping data
-calsurv_summed_pools_all_predsLA<- load_csv_from_googledrive("data/calsurv")
+calsurv_summed_pools_all_predsLA<- read.csv("data/calsurv")
 
 
 ####Preparing data####
 
-#for quinquefasciatus abundnace
+#loading Calsurv data and selecting only Cx. quinquefasciatus samples
 calsurv_quin<-calsurv_summed_pools_all_predsLA[calsurv_summed_pools_all_predsLA$species=="Culex quinquefasciatus",]
 
 #labeling with the section of LA each mosq point falls in
@@ -76,7 +76,7 @@ calsurv_quin[which(is.na(calsurv_quin$trap_nights)),"trap_nights"]<-1
 
 
 
-####generating temporal predictors####
+####generating structural temporal predictors####
 calsurv_quin$year_num<-year(calsurv_quin$date)
 
 calsurv_quin$month_num<-month(calsurv_quin$date)
@@ -96,7 +96,7 @@ calsurv_quin$trap_type<-as.factor(calsurv_quin$trap_type)
 ##removing some trap types with very few observations
 calsurv_quin<-calsurv_quin[!(calsurv_quin$trap_type %in% c("OTHER", "USDS", "Unknown trap type","REST","BGSENT")),]
 
-#one hot encoding traps
+#one hot encoding trap type
 oneHotMdl=function(x) {
   trap = factor(x)
   model.matrix(~trap+0)
@@ -109,7 +109,7 @@ calsurv_quin<-cbind(calsurv_quin,trap_hotencode)
 #removing some agencies with very few observations
 calsurv_quin<-calsurv_quin[!(calsurv_quin$agency_code %in% c("PASA", "NWST", "SGVA")),]
 
-#one hot encoding agency types
+#one hot encoding agency names
 calsurv_quin[is.na(calsurv_quin$agency_code), "agency_code"]<-"Unknown"
 calsurv_quin$agency_code<-as.factor(calsurv_quin$agency_code)
 
@@ -128,28 +128,13 @@ calsurv_quin<-calsurv_quin[calsurv_quin$RTPCR_test_pools>0,]
 #removing observations where RTPCR may have differed from RAMP 
 calsurv_quin<-calsurv_quin[!(calsurv_quin$RAMP_test_pools>0 & calsurv_quin$num_wnv_pos==1),]
 
-
-##calculating integrated column soil moisture at different lags
-calsurv_quin$soil_moist_integrated_week_lag1<-rowSums(calsurv_quin[,c("soil_moist_level_1_week_lag1","soil_moist_level_2_week_lag1","soil_moist_level_3_week_lag1")])
-
-calsurv_quin$soil_moist_integrated_week_lag2<-rowSums(calsurv_quin[,c("soil_moist_level_1_week_lag2","soil_moist_level_2_week_lag2","soil_moist_level_3_week_lag2")])
-
-calsurv_quin$soil_moist_integrated_week_lag3<-rowSums(calsurv_quin[,c("soil_moist_level_1_week_lag3","soil_moist_level_2_week_lag3","soil_moist_level_3_week_lag3")])
-
-calsurv_quin$soil_moist_integrated_month_lag1<-rowSums(calsurv_quin[,c("soil_moist_level_1_month_lag1","soil_moist_level_2_month_lag1","soil_moist_level_3_month_lag1")])
-
-calsurv_quin$soil_moist_integrated_month_lag2<-rowSums(calsurv_quin[,c("soil_moist_level_1_month_lag2","soil_moist_level_2_month_lag2","soil_moist_level_3_month_lag2")])
-
-calsurv_quin$soil_moist_integrated_month_lag3<-rowSums(calsurv_quin[,c("soil_moist_level_1_month_lag3","soil_moist_level_2_month_lag3","soil_moist_level_3_month_lag3")])
-
-calsurv_quin$soil_moist_integrated_season_lag1<-rowSums(calsurv_quin[,c("soil_moist_level_1_season_lag1","soil_moist_level_2_season_lag1","soil_moist_level_3_season_lag1")])
-
-calsurv_quin$soil_moist_integrated_season_lag2<-rowSums(calsurv_quin[,c("soil_moist_level_1_season_lag2","soil_moist_level_2_season_lag2","soil_moist_level_3_season_lag2")])
-
-calsurv_quin$soil_moist_integrated_season_lag3<-rowSums(calsurv_quin[,c("soil_moist_level_1_season_lag3","soil_moist_level_2_season_lag3","soil_moist_level_3_season_lag3")])
+###adding in soil moisture data including total column and anomalies
+sm_anomalies<-read.csv("data/sm_anomalies.csv", header=T)
+sm_anomalies$date<-as.Date(sm_anomalies$date)
+calsurv_quin<-left_join(calsurv_quin, sm_anomalies[c(1:18,26,28:47)], by=c("site.ID", "date"))
 
 
-####Generating a dataset to use for random forest####
+####Generating a dataset for random forest anaysis####
 
 #randomForest for WNV Presence
 calsurv_quin_rf<-calsurv_quin
@@ -186,7 +171,7 @@ calsurv_quin_rf1<-data.frame(calsurv_quin_rf1,calsurv_quin_rf[,c(
   grep("wetpalus_area", colnames(calsurv_quin_rf)),
   grep("wetriverine_area", colnames(calsurv_quin_rf)) )])
 
-#removing unnecessary buffers from dataset
+#removing covariates measured at unnecessary 50m buffers
 calsurv_quin_rf1<-calsurv_quin_rf1[,-grep("_50", colnames(calsurv_quin_rf1))]
 
 calsurv_quin_rf<-calsurv_quin_rf1
@@ -225,8 +210,7 @@ doParallel::registerDoParallel(cl)
 
 
 #grid search values
-samp_prop<-expand.grid(wnv=c(.25,.5,.75,1), nownv=c(.25,.5,.75,1), trees=c(500), mtry=c(103))
-#samp_prop<-expand.grid(wnv=c(.25), nownv=c(.25),  trees=c(500))
+samp_prop<-expand.grid(wnv=c(.25,.5,.75,1), nownv=c(.25,.5,.75,1), trees=c(500,1000), mtry=c(15,50,75,103))
 
 tuning_data<-data.frame()
 system.time(
@@ -240,7 +224,6 @@ quin_rf_wnvpres <-  randomForest(
   importance=T, 
   keep.inbag = T,
   mtry=samp_prop$mtry[i]
-  #mtry = length(calsurv_quin_rf_cov[train.index,]) 
   )
 
     
@@ -934,96 +917,7 @@ aug_sep_rast_mask<-raster::mask(aug_sep_rast, mask = la_metro)
 
 
 
-
-
-##extracting increases in temp by region
-
-aug_sep_regional<-raster::extract( aug_sep_rast_mask,spTransform(poly_region, CRSobj = CRS(proj4string( aug_sep_rast_mask))), fun=mean, na.rm=T)
-aug_sep_regional
-
-jul_oct_regional<-raster::extract( jul_oct_rast_mask,spTransform(poly_region, CRSobj = CRS(proj4string( jul_oct_rast_mask))), fun=mean, na.rm=T)
-jul_oct_regional
-
-
-projected_increases_df<-data.frame(region=c(rep(c("Coastal", "Central", "Inland"), 7)  ), 
-                                   month=c("6","6","6","7","7","7","8","8","8","9","9","9","10","10","10",
-                                           "aug_sep","aug_sep", "aug_sep", "jul_oct","jul_oct","jul_oct"), 
-                                   increase=c(jun_regional[,1],jul_regional[,1],aug_regional[,1],
-                                              sep_regional[,1], oct_regional[,1], aug_sep_regional[,1], 
-                                              jul_oct_regional[,1]))
-
-
-
-
 ####Figure S5####
-
-
-facet_data$month_fac<-factor(facet_data$month_num, levels =7:10, labels = c("July", "August", "September", "October"))
-
-facet_data$cluster_fac<-factor(facet_data$cluster, levels = 1:3, labels = c("Coastal", "Central", "Inland"))
-
-
-for (i in 1:nrow(facet_data)){
-  if(facet_data$month_num[i] %in% 7:10){
-  facet_data[i,"tmean_warmed"]<-facet_data$tmean_month_lag1[i]+projected_increases_df[projected_increases_df$region==facet_data$cluster_fac[i] & projected_increases_df$month==facet_data$month_num[i],"increase"]
-  print(i)
-  }
-  else(next)
-}
-
-
-
-  transcritical_hist<-ggplot() + 
-  geom_histogram(data=facet_data[facet_data$month_num %in% c(7:10), ], 
-                 aes(x=tmean_month_lag1), color="white", bins=30, alpha=.5) +
-    geom_histogram(data=facet_data[facet_data$month_num %in% c(7:10), ], 
-                   aes(x=tmean_warmed), color="white",fill="red", bins=30, alpha=.4) +
-  geom_vline(xintercept = c(21,22.7), color="black", size=1, linetype="dashed") +
-  facet_grid(cluster_fac~month_fac, scales="free_y" )+
-  scale_x_continuous("Monthly mean temp. (°C)" )+
-  scale_y_continuous("Number of observations",expand=c(0,0))+
-  theme_bw()
-
-
-
-
-##determining % of observations in the favorable range by example years
-
-cluster1_temps<-facet_data$tmean_month_lag1[facet_data$year_num==2011 & facet_data$month_num %in% c(7:10) & facet_data$cluster==1]
-
-length(cluster1_temps[cluster1_temps>22.7])/length(cluster1_temps)
-
-
-cluster2_temps<-facet_data$tmean_month_lag1[facet_data$year_num==2011 & facet_data$month_num %in% c(7:10) & facet_data$cluster==2]
-
-length(cluster2_temps[cluster2_temps>22.7])/length(cluster2_temps)
-
-
-cluster3_temps<-facet_data$tmean_month_lag1[facet_data$year_num==2011 & facet_data$month_num %in% c(7:10) & facet_data$cluster==3]
-
-length(cluster3_temps[cluster3_temps>22.7])/length(cluster3_temps)
-
-
-
-cluster1_temps<-facet_data$tmean_month_lag1[facet_data$year_num==2014 & facet_data$month_num %in% c(7:10) & facet_data$cluster==1]
-
-length(cluster1_temps[cluster1_temps>22.7])/length(cluster1_temps)
-
-
-cluster2_temps<-facet_data$tmean_month_lag1[facet_data$year_num==2014 & facet_data$month_num %in% c(7:10) & facet_data$cluster==2]
-
-length(cluster2_temps[cluster2_temps>22.7])/length(cluster2_temps)
-
-
-cluster3_temps<-facet_data$tmean_month_lag1[facet_data$year_num==2014 & facet_data$month_num %in% c(7:10) & facet_data$cluster==3]
-
-length(cluster3_temps[cluster3_temps>22.7])/length(cluster3_temps)
-
-
-
-
-
-####Figure S6####
 
 pal <- colorNumeric(
   palette = "Spectral",
@@ -1223,7 +1117,7 @@ figure_S4<-plot_grid(pred_legend_fullseries, tmean_fullseries+guides(color=F),pr
 
 
 
-
+####Mediation analysis####
 
 #monthly human cases
 human_cases_monthly<-read.csv("data/human_la_aggregated_monthly.csv", header=T)
@@ -1258,7 +1152,7 @@ model.M_JO_inland<-lm(mean_prob_pred~tmean_mean*relevel(cluster, ref=3),data=dat
 
 
 
-####Mediation analysis####
+
 #mediation analysis for august + september
 #coastal_ref
 medflex_glm<-glm(cases~ tmean_mean+mean_prob_pred+tmean_mean*cluster+ offset(log((pop2010))), data = data.frame(monthly_human_anom[monthly_human_anom$year>2005 & monthly_human_anom$month %in% c(8:9), c("tmean_mean", "mean_prob_pred", "mean_abund", "cluster",  "pop2010", "lag_cases", "lag_mean_prob_pred", "cases", "ni_cases")]), family=negative.binomial(model.Y$theta))
@@ -1616,10 +1510,6 @@ human_CT_la$date[is.na(human_CT_la$date)]<-as.Date(human_CT_la$hospadmitdt[is.na
 CT<-load_rgdal_from_googledrive("LA_censustract_shapefile")
 CT_la<-crop(CT, extent(la_metro))
 
-##jittering census tracts with 20km random displacement
-CT_la@data$latitude<-jitter(coordinates(gCentroid(CT_la, byid = T))[,2], amount=.02)
-CT_la@data$longitude<-jitter(coordinates(gCentroid(CT_la, byid = T))[,1], amount=.02)
-
 CT_la@data$GEO_ID<-gsub("1400000US0", "",CT_la@data$GEO_ID )
 CT_human<-full_join(human_CT_la, CT_la@data, by=c("GEOID"="GEO_ID"))
 
@@ -1631,7 +1521,7 @@ CT_human$tract_pop2010<-as.numeric(CT_human$tract_pop2010)
 #using TopoWx climate data
 
 #all months
-#subsetting to after 2006 and for july_sept
+#subsetting to after 2006 \
 topowx_data_sum8_9<-list()
 year_indx<-c(12,15,29,32)
 for (i in 1:length(year_indx)){
@@ -1702,7 +1592,7 @@ change_2011_2014_8_9$layer<-factor(change_2011_2014_8_9$layer,levels =c("1","2",
 mapviewOptions(legend.pos="bottomright")
 
 
-
+#creating map with randomly placed points being generated within each climate scenario
 map_2011_2014_8_9_rand<-mapview(change_2011_2014_8_9, map.types="CartoDB.Positron", trim=T,zcol="layer" ,col.regions=c("green","purple", "blue","transparent" ), alpha.regions=.4, legend=TRUE,layer.name="Temperature Shift (2011→2014)", lwd=.00001 )+
   mapview(la_metro,  alpha.regions=.001, map.types="CartoDB.Positron", legend=FALSE) + 
   mapview(spsample(change_2011_2014_8_9[change_2011_2014_8_9$layer=="Transitional→Favorable",], n=trans_fav_cases, type="clustered"), cex=4, lwd=1.3, map.types="CartoDB.Positron",legend = FALSE, alpha.regions=.8, layer.name="Human WNV Cases", col.regions="red")+ 
@@ -1712,4 +1602,99 @@ map_2011_2014_8_9_rand<-mapview(change_2011_2014_8_9, map.types="CartoDB.Positro
   mapview(spsample(change_2011_2014_8_9[change_2011_2014_8_9$layer=="Inhibitory→Favorable",], n=inhib_fav_cases_2014, type="clustered"), cex=4, lwd=1.3, map.types="CartoDB.Positron",legend = FALSE, alpha.regions=.8, layer.name="Human WNV Cases", col.regions="yellow")+ 
   mapview(spsample(change_2011_2014_8_9[change_2011_2014_8_9$layer=="Favorable→Favorable",], n=fav_fav_cases_2014, type="clustered"), cex=4, lwd=1.3, map.types="CartoDB.Positron",legend = FALSE, alpha.regions=.8, layer.name="Human WNV Cases", col.regions="yellow")
 
+
+
+
+
+
+##extracting increases in temp by region
+
+aug_sep_regional<-raster::extract( aug_sep_rast_mask,spTransform(poly_region, CRSobj = CRS(proj4string( aug_sep_rast_mask))), fun=mean, na.rm=T)
+aug_sep_regional
+
+jul_oct_regional<-raster::extract( jul_oct_rast_mask,spTransform(poly_region, CRSobj = CRS(proj4string( jul_oct_rast_mask))), fun=mean, na.rm=T)
+jul_oct_regional
+
+
+projected_increases_df<-data.frame(region=c(rep(c("Coastal", "Central", "Inland"), 7)  ), 
+                                   month=c("6","6","6","7","7","7","8","8","8","9","9","9","10","10","10",
+                                           "aug_sep","aug_sep", "aug_sep", "jul_oct","jul_oct","jul_oct"), 
+                                   increase=c(jun_regional[,1],jul_regional[,1],aug_regional[,1],
+                                              sep_regional[,1], oct_regional[,1], aug_sep_regional[,1], 
+                                              jul_oct_regional[,1]))
+
+
+
+
+####Figure 6####
+#adding projected mid-centruy increases in each zone to observed values
+
+facet_data$month_fac<-factor(facet_data$month_num, levels =7:10, labels = c("July", "August", "September", "October"))
+
+facet_data$cluster_fac<-factor(facet_data$cluster, levels = 1:3, labels = c("Coastal", "Central", "Inland"))
+
+
+for (i in 1:nrow(facet_data)){
+  if(facet_data$month_num[i] %in% 7:10){
+    facet_data[i,"tmean_warmed"]<-facet_data$tmean_month_lag1[i]+
+      projected_increases_df[projected_increases_df$region==facet_data$cluster_fac[i] & 
+                               projected_increases_df$month==facet_data$month_num[i],"increase"]
+    print(i)
+  }
+  else(next)
+}
+
+
+
+transcritical_hist<-ggplot() + 
+  geom_histogram(data=facet_data[facet_data$month_num %in% c(7:10), ], 
+                 aes(x=tmean_month_lag1), color="white", bins=30, alpha=.5) +
+  geom_histogram(data=facet_data[facet_data$month_num %in% c(7:10), ], 
+                 aes(x=tmean_warmed), color="white",fill="red", bins=30, alpha=.4) +
+  geom_vline(xintercept = c(21,22.7), color="black", size=1, linetype="dashed") +
+  facet_grid(cluster_fac~month_fac, scales="free_y" )+
+  scale_x_continuous("Monthly mean temp. (°C)" )+
+  scale_y_continuous("Number of observations",expand=c(0,0))+
+  theme_bw()
+
+
+
+
+##determining % of observations in the favorable range by example years
+
+cluster1_temps<-facet_data$tmean_month_lag1[facet_data$year_num==2011 & 
+                                              facet_data$month_num %in% c(7:10) & facet_data$cluster==1]
+
+length(cluster1_temps[cluster1_temps>22.7])/length(cluster1_temps)
+
+
+cluster2_temps<-facet_data$tmean_month_lag1[facet_data$year_num==2011 & 
+                                              facet_data$month_num %in% c(7:10) & facet_data$cluster==2]
+
+length(cluster2_temps[cluster2_temps>22.7])/length(cluster2_temps)
+
+
+cluster3_temps<-facet_data$tmean_month_lag1[facet_data$year_num==2011 & 
+                                              facet_data$month_num %in% c(7:10) & facet_data$cluster==3]
+
+length(cluster3_temps[cluster3_temps>22.7])/length(cluster3_temps)
+
+
+
+cluster1_temps<-facet_data$tmean_month_lag1[facet_data$year_num==2014 & 
+                                              facet_data$month_num %in% c(7:10) & facet_data$cluster==1]
+
+length(cluster1_temps[cluster1_temps>22.7])/length(cluster1_temps)
+
+
+cluster2_temps<-facet_data$tmean_month_lag1[facet_data$year_num==2014 & 
+                                              facet_data$month_num %in% c(7:10) & facet_data$cluster==2]
+
+length(cluster2_temps[cluster2_temps>22.7])/length(cluster2_temps)
+
+
+cluster3_temps<-facet_data$tmean_month_lag1[facet_data$year_num==2014 & 
+                                              facet_data$month_num %in% c(7:10) & facet_data$cluster==3]
+
+length(cluster3_temps[cluster3_temps>22.7])/length(cluster3_temps)
 
