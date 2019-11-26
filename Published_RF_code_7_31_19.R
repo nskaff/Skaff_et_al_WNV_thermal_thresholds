@@ -7,7 +7,6 @@ library(dplyr)
 library(forestFloor)
 library(ROSE)
 require(pROC)
-library(googledrive)
 library(parallel)
 library(foreach)
 library(ggplot2)
@@ -1507,7 +1506,7 @@ human_CT_la$date<-as.Date(human_CT_la$onsetdt, format="%m/%d/%Y")
 human_CT_la$date[is.na(human_CT_la$date)]<-as.Date(human_CT_la$hospadmitdt[is.na(human_CT_la$date)], format="%m/%d/%Y")-4
 
 
-CT<-load_rgdal_from_googledrive("LA_censustract_shapefile")
+CT<-readOGR("LA_censustract_shapefile")
 CT_la<-crop(CT, extent(la_metro))
 
 CT_la@data$GEO_ID<-gsub("1400000US0", "",CT_la@data$GEO_ID )
@@ -1547,43 +1546,6 @@ mean_2011_8_9_dff[mean_2011_8_9<21& mean_2014_8_9>22.7]<-3
 mean_2011_8_9_dff[mean_2011_8_9>22.7& mean_2014_8_9>22.7]<-4
 
 
-#calculating the number of human cases within each climate scenario for 2011 and 2014
-inhib_trans_cases<-length(
-  over(SpatialPointsDataFrame(coords = CT_human[CT_human$year %in% c(2011)& month(CT_human$date) %in% c(9) ,c("longitude", "latitude")],proj4string=CRS(proj4string(mean_2011_8_9_dff)), data = CT_human[CT_human$year %in% c(2011)& month(CT_human$date) %in% c(9) ,]),
-       change_2011_2014_8_9[change_2011_2014_8_9$layer=="Inhibitory→Transitional",])[which(!is.na(over(SpatialPointsDataFrame(coords = CT_human[CT_human$year %in% c(2011)& month(CT_human$date) %in% c(9) ,c("longitude", "latitude")],proj4string=CRS(proj4string(mean_2011_8_9_dff)), data = CT_human[CT_human$year %in% c(2011)& month(CT_human$date) %in% c(9) ,]),change_2011_2014_8_9[change_2011_2014_8_9$layer=="Inhibitory→Transitional",]))),])
-
-trans_fav_cases<-length(
-  over(SpatialPointsDataFrame(coords = CT_human[CT_human$year %in% c(2011)& month(CT_human$date) %in% c(9) ,c("longitude", "latitude")],proj4string=CRS(proj4string(mean_2011_8_9_dff)), data = CT_human[CT_human$year %in% c(2011)& month(CT_human$date) %in% c(9) ,]),
-       change_2011_2014_8_9[change_2011_2014_8_9$layer=="Transitional→Favorable",])[which(!is.na(over(SpatialPointsDataFrame(coords = CT_human[CT_human$year %in% c(2011)& month(CT_human$date) %in% c(9) ,c("longitude", "latitude")],proj4string=CRS(proj4string(mean_2011_8_9_dff)), data = CT_human[CT_human$year %in% c(2011)& month(CT_human$date) %in% c(9) ,]),change_2011_2014_8_9[change_2011_2014_8_9$layer=="Transitional→Favorable",]))),])
-
-
-inhib_fav_cases<-length(
-  over(SpatialPointsDataFrame(coords = CT_human[CT_human$year %in% c(2011)& month(CT_human$date) %in% c(9) ,c("longitude", "latitude")],proj4string=CRS(proj4string(mean_2011_8_9_dff)), data = CT_human[CT_human$year %in% c(2011)& month(CT_human$date) %in% c(9) ,]),
-       change_2011_2014_8_9[change_2011_2014_8_9$layer=="Inhibitory→Favorable",])[which(!is.na(over(SpatialPointsDataFrame(coords = CT_human[CT_human$year %in% c(2011)& month(CT_human$date) %in% c(9) ,c("longitude", "latitude")],proj4string=CRS(proj4string(mean_2011_8_9_dff)), data = CT_human[CT_human$year %in% c(2011)& month(CT_human$date) %in% c(9) ,]),change_2011_2014_8_9[change_2011_2014_8_9$layer=="Inhibitory→Favorable",]))),])
-
-fav_fav_cases<-length(
-  over(SpatialPointsDataFrame(coords = CT_human[CT_human$year %in% c(2011)& month(CT_human$date) %in% c(9) ,c("longitude", "latitude")],proj4string=CRS(proj4string(mean_2011_8_9_dff)), data = CT_human[CT_human$year %in% c(2011)& month(CT_human$date) %in% c(9) ,]),
-       change_2011_2014_8_9[change_2011_2014_8_9$layer=="Favorable→Favorable",])[which(!is.na(over(SpatialPointsDataFrame(coords = CT_human[CT_human$year %in% c(2011)& month(CT_human$date) %in% c(9) ,c("longitude", "latitude")],proj4string=CRS(proj4string(mean_2011_8_9_dff)), data = CT_human[CT_human$year %in% c(2011)& month(CT_human$date) %in% c(9) ,]),change_2011_2014_8_9[change_2011_2014_8_9$layer=="Favorable→Favorable",]))),])
-
-
-inhib_trans_cases_2014<-length(
-  over(SpatialPointsDataFrame(coords = CT_human[CT_human$year %in% c(2014)& month(CT_human$date) %in% c(9) ,c("longitude", "latitude")],proj4string=CRS(proj4string(mean_2014_8_9_dff)), data = CT_human[CT_human$year %in% c(2014)& month(CT_human$date) %in% c(9) ,]),
-       change_2011_2014_8_9[change_2011_2014_8_9$layer=="Inhibitory→Transitional",])[which(!is.na(over(SpatialPointsDataFrame(coords = CT_human[CT_human$year %in% c(2014)& month(CT_human$date) %in% c(9) ,c("longitude", "latitude")],proj4string=CRS(proj4string(mean_2014_8_9_dff)), data = CT_human[CT_human$year %in% c(2014)& month(CT_human$date) %in% c(9) ,]),change_2011_2014_8_9[change_2011_2014_8_9$layer=="Inhibitory→Transitional",]))),])
-
-trans_fav_cases_2014<-length(
-  over(SpatialPointsDataFrame(coords = CT_human[CT_human$year %in% c(2014)& month(CT_human$date) %in% c(9) ,c("longitude", "latitude")],proj4string=CRS(proj4string(mean_2014_8_9_dff)), data = CT_human[CT_human$year %in% c(2014)& month(CT_human$date) %in% c(9) ,]),
-       change_2011_2014_8_9[change_2011_2014_8_9$layer=="Transitional→Favorable",])[which(!is.na(over(SpatialPointsDataFrame(coords = CT_human[CT_human$year %in% c(2014)& month(CT_human$date) %in% c(9) ,c("longitude", "latitude")],proj4string=CRS(proj4string(mean_2014_8_9_dff)), data = CT_human[CT_human$year %in% c(2014)& month(CT_human$date) %in% c(9) ,]),change_2011_2014_8_9[change_2011_2014_8_9$layer=="Transitional→Favorable",]))),])
-
-
-inhib_fav_cases_2014<-length(
-  over(SpatialPointsDataFrame(coords = CT_human[CT_human$year %in% c(2014)& month(CT_human$date) %in% c(9) ,c("longitude", "latitude")],proj4string=CRS(proj4string(mean_2014_8_9_dff)), data = CT_human[CT_human$year %in% c(2014)& month(CT_human$date) %in% c(9) ,]),
-       change_2011_2014_8_9[change_2011_2014_8_9$layer=="Inhibitory→Favorable",])[which(!is.na(over(SpatialPointsDataFrame(coords = CT_human[CT_human$year %in% c(2014)& month(CT_human$date) %in% c(9) ,c("longitude", "latitude")],proj4string=CRS(proj4string(mean_2014_8_9_dff)), data = CT_human[CT_human$year %in% c(2014)& month(CT_human$date) %in% c(9) ,]),change_2011_2014_8_9[change_2011_2014_8_9$layer=="Inhibitory→Favorable",]))),])
-
-fav_fav_cases_2014<-length(
-  over(SpatialPointsDataFrame(coords = CT_human[CT_human$year %in% c(2014)& month(CT_human$date) %in% c(9) ,c("longitude", "latitude")],proj4string=CRS(proj4string(mean_2014_8_9_dff)), data = CT_human[CT_human$year %in% c(2014)& month(CT_human$date) %in% c(9) ,]),
-       change_2011_2014_8_9[change_2011_2014_8_9$layer=="Favorable→Favorable",])[which(!is.na(over(SpatialPointsDataFrame(coords = CT_human[CT_human$year %in% c(2014)& month(CT_human$date) %in% c(9) ,c("longitude", "latitude")],proj4string=CRS(proj4string(mean_2014_8_9_dff)), data = CT_human[CT_human$year %in% c(2014)& month(CT_human$date) %in% c(9) ,]),change_2011_2014_8_9[change_2011_2014_8_9$layer=="Favorable→Favorable",]))),])
-
-
 mean_2011_8_9_dff_0<-as.factor(mean_2011_8_9_dff)
 
 change_2011_2014_8_9<-rasterToPolygons(mean_2011_8_9_dff_0,  n=4, na.rm=TRUE, digits=12, dissolve=TRUE)
@@ -1592,20 +1554,68 @@ change_2011_2014_8_9$layer<-factor(change_2011_2014_8_9$layer,levels =c("1","2",
 mapviewOptions(legend.pos="bottomright")
 
 
-#creating map with randomly placed points being generated within each climate scenario
+#calculating the number of cases that fall in each element of a 20km grid intersected with the climate scenario regions 
+change_2011_2014_8_9_sf<-st_transform(st_as_sf(change_2011_2014_8_9), crs = proj_system)
+
+grid_20<-st_make_grid(change_2011_2014_8_9_sf, cellsize=20000)
+
+grid_zone<-grid_20 %>% st_intersection(change_2011_2014_8_9_sf)
+
+case_overlap_2011<-over(SpatialPointsDataFrame(coords = CT_human[CT_human$year %in% c(2011)& 
+                                                                   month(CT_human$date) %in% c(9) ,
+                                                                 c("longitude", "latitude")],
+                                               proj4string=CRS(proj4string(change_2011_2014_8_9)), 
+                                               data = CT_human[CT_human$year %in% c(2011)& 
+                                                                 month(CT_human$date) %in% c(9) ,]), 
+                        spTransform(as_Spatial(grid_zone), CRS(proj4string(change_2011_2014_8_9))))
+
+
+
+case_overlap_2014<-over(SpatialPointsDataFrame(coords = CT_human[CT_human$year %in% c(2014)& 
+                                                                   month(CT_human$date) %in% c(9) ,
+                                                                 c("longitude", "latitude")],
+                                               proj4string=CRS(proj4string(change_2011_2014_8_9)), 
+                                               data = CT_human[CT_human$year %in% c(2014)& 
+                                                                 month(CT_human$date) %in% c(9) ,]), 
+                        spTransform(as_Spatial(grid_zone), CRS(proj4string(change_2011_2014_8_9))))
+
+
+#number of cases per polygon
+df_2011<-data.frame(table(case_overlap_2011))
+df_2011[,1]<-as.numeric(as.character(df_2011[,1]))
+
+cases_region2011<-full_join(data.frame(case_overlap_2011=1:length(grid_zone)),df_2011)
+cases_region2011[is.na(cases_region2011$Freq), "Freq"]<-0
+
+#randomly generating appropriate number of cases in each grid/climate intersection and creating df with this data
+random_2011<-st_sample(grid_zone, size=cases_region2011$Freq)
+
+#number of cases per polygon
+df_2014<-data.frame(table(case_overlap_2014))
+df_2014[,1]<-as.numeric(as.character(df_2014[,1]))
+
+cases_region2014<-full_join(data.frame(case_overlap_2014=1:length(grid_zone)),df_2014)
+cases_region2014[is.na(cases_region2014$Freq), "Freq"]<-0
+
+#randomly generating appropriate number of cases in each grid/climate intersection and creating df with this data
+random_2014<-st_sample(grid_zone, size=cases_region2014$Freq)
+
+
+#combining into a easily plottable shapefile
+random_all<-c(random_2011, random_2014)
+
+random_all_sp<-SpatialPointsDataFrame(as_Spatial(test), data = data.frame(year=c(rep("2011", length(random_2011)),rep("2014", length(random_2014)))))
+
+
+
+#plotting Figure 5
 map_2011_2014_8_9_rand<-mapview(change_2011_2014_8_9, map.types="CartoDB.Positron", trim=T,zcol="layer" ,col.regions=c("green","purple", "blue","transparent" ), alpha.regions=.4, legend=TRUE,layer.name="Temperature Shift (2011→2014)", lwd=.00001 )+
   mapview(la_metro,  alpha.regions=.001, map.types="CartoDB.Positron", legend=FALSE) + 
-  mapview(spsample(change_2011_2014_8_9[change_2011_2014_8_9$layer=="Transitional→Favorable",], n=trans_fav_cases, type="clustered"), cex=4, lwd=1.3, map.types="CartoDB.Positron",legend = FALSE, alpha.regions=.8, layer.name="Human WNV Cases", col.regions="red")+ 
-  mapview(spsample(change_2011_2014_8_9[change_2011_2014_8_9$layer=="Favorable→Favorable",], n=fav_fav_cases, type="clustered"), cex=4, lwd=1.3, map.types="CartoDB.Positron",legend = FALSE, alpha.regions=.8, layer.name="Human WNV Cases", col.regions="red")+
-  mapview(spsample(change_2011_2014_8_9[change_2011_2014_8_9$layer=="Inhibitory→Transitional",], n=inhib_trans_cases_2014, type="clustered"), cex=4, lwd=1.3, map.types="CartoDB.Positron",legend = FALSE, alpha.regions=.8, layer.name="Human WNV Cases", col.regions="yellow") + 
-  mapview(spsample(change_2011_2014_8_9[change_2011_2014_8_9$layer=="Transitional→Favorable",], n=trans_fav_cases_2014, type="clustered"), cex=4, lwd=1.3, map.types="CartoDB.Positron",legend = FALSE, alpha.regions=.8, layer.name="Human WNV Cases", col.regions="yellow")+ 
-  mapview(spsample(change_2011_2014_8_9[change_2011_2014_8_9$layer=="Inhibitory→Favorable",], n=inhib_fav_cases_2014, type="clustered"), cex=4, lwd=1.3, map.types="CartoDB.Positron",legend = FALSE, alpha.regions=.8, layer.name="Human WNV Cases", col.regions="yellow")+ 
-  mapview(spsample(change_2011_2014_8_9[change_2011_2014_8_9$layer=="Favorable→Favorable",], n=fav_fav_cases_2014, type="clustered"), cex=4, lwd=1.3, map.types="CartoDB.Positron",legend = FALSE, alpha.regions=.8, layer.name="Human WNV Cases", col.regions="yellow")
+  mapview(random_all_sp, zcol="year",cex=4, lwd=1.3, map.types="CartoDB.Positron",legend = T, alpha.regions=.8, layer.name="Human WNV Cases",col.regions=c("darkred", "yellow"))
 
 
 
-
-
+####Figure 6####
 
 ##extracting increases in temp by region
 
@@ -1626,7 +1636,7 @@ projected_increases_df<-data.frame(region=c(rep(c("Coastal", "Central", "Inland"
 
 
 
-####Figure 6####
+
 #adding projected mid-centruy increases in each zone to observed values
 
 facet_data$month_fac<-factor(facet_data$month_num, levels =7:10, labels = c("July", "August", "September", "October"))
@@ -1660,7 +1670,7 @@ transcritical_hist<-ggplot() +
 
 
 
-##determining % of observations in the favorable range by example years
+####determining % of observations in the favorable range by example years####
 
 cluster1_temps<-facet_data$tmean_month_lag1[facet_data$year_num==2011 & 
                                               facet_data$month_num %in% c(7:10) & facet_data$cluster==1]
